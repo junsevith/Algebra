@@ -2,6 +2,7 @@ use std::fmt::{Display, Formatter};
 use std::ops::{Add, Div, Mul, Neg, Rem, Shl, Sub};
 
 use fmtastic::Superscript;
+use num_traits::Num;
 
 pub struct Polynomial {
     coeffs: Vec<f64>,
@@ -35,6 +36,7 @@ impl Polynomial {
         self.coeffs.last().unwrap_or(&0.0).clone()
     }
 
+    ///Removes all coefficients that are equal to 0 from the beginning of the polynomial
     fn trim(&mut self) {
         while self.coeffs.last() == Some(&0.0) {
             self.coeffs.pop();
@@ -42,22 +44,57 @@ impl Polynomial {
     }
 
 
-    pub fn gcd(first: &Self, second: &Self) -> Self {
+    pub fn gcd(first: Self, second: Self) -> Self {
         let (mut higher, mut lower) = if first.norm() > second.norm() {
-            (first.clone(), second.clone())
+            (first, second)
         } else {
-            (second.clone(), first.clone())
+            (second, first)
         };
         while lower.norm() > 0 {
-            let rem = higher % lower.clone();
+            let rem = higher.div_rem(&lower).1;
             higher = lower;
             lower = rem;
         }
         higher
     }
 
-    pub fn lcm(first: &Self, second: &Self) -> Self {
-        (first.clone() * second.clone()) / Self::gcd(first, second)
+    pub fn lcm(first: Self, second: Self) -> Self {
+        (&first * &second) / Self::gcd(first, second)
+    }
+
+    pub fn scale(mut self, coefficient: f64) -> Self {
+        for i in self.coeffs.iter_mut() {
+            *i *= coefficient;
+        }
+        self
+    }
+
+    pub fn div_rem(self, divisor: &Self) -> (Self, Self) {
+        let mian_norm = divisor.norm();
+        let mut out = vec![0.0; self.norm() - mian_norm + 1];
+        let mut dividend = self;
+        let mian_lead = divisor.leading();
+
+        while dividend.norm() >= mian_norm {
+            let factor = dividend.leading() / mian_lead;
+            let num = divisor.clone().scale(factor) << (dividend.norm() - mian_norm);
+            out[dividend.norm() - mian_norm] = factor;
+            dividend = dividend - num;
+        }
+        (Self {
+            coeffs: out
+        }, dividend)
+    }
+
+    pub fn extended_gcd(a: Self, b: Self) -> (Self, Self, Self) {
+        return if b.norm() == 0 {
+            (a, Self::new(&[1]), Self::new(&[0]))
+        } else {
+            let (quotient, remainder) = a.div_rem(&b);
+            let (gcd, x, y) = Self::extended_gcd(b, remainder);
+            let next = x - (&quotient * &y);
+            (gcd, y, next)
+        }
     }
 }
 
@@ -83,11 +120,7 @@ impl Neg for Polynomial {
     type Output = Polynomial;
 
     fn neg(self) -> Self::Output {
-        let mut new = self;
-        for x in new.coeffs.iter_mut() {
-            *x *= -1.0;
-        }
-        new
+        self.scale(-1.0)
     }
 }
 
@@ -99,14 +132,36 @@ impl Sub for Polynomial {
     }
 }
 
+
 impl Mul for Polynomial {
     type Output = Polynomial;
 
+    ///Multiplication of two polynomials
+    ///
+    /// Because the used algorithm doesn't need to consume values you can instead use references:
+    /// ```
+    /// &first * &second
+    /// ```
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        &self * &rhs
+    }
+}
+
+impl Mul for &Polynomial {
+    type Output = Polynomial;
+
+    ///Multiplication of two polynomials
+    ///
+    /// Because the used algorithm doesn't need to consume values you can use references:
     fn mul(self, rhs: Self) -> Self::Output {
         let mut out = vec![0.0; self.norm() + rhs.norm() - 1];
         for i in 0..self.norm() {
-            for j in 0..rhs.norm() {
-                out[i + j] += self.coeffs[i] * rhs.coeffs[j];
+            let first = self.coeffs[i];
+            if first != 0.0 {
+                for j in 0..rhs.norm() {
+                    out[i + j] += first * rhs.coeffs[j];
+                }
             }
         }
         Self::Output {
@@ -119,18 +174,7 @@ impl Div for Polynomial {
     type Output = Polynomial;
 
     fn div(self, rhs: Self) -> Self::Output {
-        let mut out = vec![0.0; self.norm() - rhs.norm() + 1];
-        let mut dividend = self;
-        while dividend.norm() >= rhs.norm() {
-            let factor = dividend.leading() / rhs.leading();
-            let num = Polynomial::new(&[factor]) << (dividend.norm() - rhs.norm());
-            out[dividend.norm() - rhs.norm()] = factor;
-            dividend = dividend - (rhs.clone() * num);
-            dividend.trim();
-        }
-        Self::Output {
-            coeffs: out
-        }
+        self.div_rem(&rhs).0
     }
 }
 
@@ -138,15 +182,7 @@ impl Rem for Polynomial {
     type Output = Polynomial;
 
     fn rem(self, rhs: Self) -> Self::Output {
-        let mut out = self;
-        while out.norm() >= rhs.norm() {
-            let factor = out.leading() / rhs.leading();
-            let num = Polynomial::new(&[factor]) << (out.norm() - rhs.norm());
-            out = out - (rhs.clone() * num);
-            out.trim();
-            // println!("{}", copy)
-        }
-        out
+        self.div_rem(&rhs).1
     }
 }
 
@@ -175,11 +211,14 @@ impl Clone for Polynomial {
 
 impl Display for Polynomial {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut out = String::new();
         let len = self.coeffs.len();
         if len == 0 {
             return write!(f, "0");
+        } else if len == 1 {
+            return write!(f, "{}", self.coeffs[0]);
         }
+
+        let mut out = String::new();
         for i in (0..len).rev() {
             let mut coeff = self.coeffs[i];
             let mut var = "x";
