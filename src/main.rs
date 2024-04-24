@@ -36,14 +36,14 @@ fn main() {
 
     println!();
     let point = grid::Point::new([0, 0]);
-    let point2 = grid::Point::new([10, 10]);
+    let point2 = grid::Point::new([15, 15]);
     let set = grid::gen_set(&point, &point2,|point| point.coords[0] * point.coords[1] >= 11);
     let set = grid::min(&set);
     println!("{:?}", set);
 
-    let point = grid::Point::new([5, 5]);
+    let point = grid::Point::new([5i32, 5]);
     let point2 = grid::Point::new([15, 15]);
-    let set = grid::gen_set(&point, &point2,|point| (point.coords[0] - 10_i32).pow(2) + (point.coords[1] - 10_i32).pow(2) <= 25);
+    let set = grid::gen_set(&point, &point2,|point| (point.coords[0] - 10).pow(2) + (point.coords[1] - 10).pow(2) <= 25);
     let set = grid::min(&set);
     println!("{:?}", set);
 }

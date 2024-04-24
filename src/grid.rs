@@ -103,21 +103,21 @@ pub fn min<T: PartialOrd>(set: &[T]) -> Vec<&T> {
     mins
 }
 
-pub fn gen_set<T: NumAssign + Ord + Clone, const DIMS: usize>(lower_bound: &Point<T, DIMS>, upper_bound: &Point<T, DIMS>, function: fn(&Point<T, DIMS>) -> bool) -> Vec<Point<T, DIMS>> {
+pub fn gen_set<T: NumAssign + Ord + Clone + Debug, const DIMS: usize>(lower_bound: &Point<T, DIMS>, upper_bound: &Point<T, DIMS>, function: fn(&Point<T, DIMS>) -> bool) -> Vec<Point<T, DIMS>> {
     let mut set = vec![];
-    propagate_set(&mut set, function, lower_bound.clone(), &upper_bound);
+    propagate_set(&mut set, function, &lower_bound, &upper_bound, 0);
     set
 }
 
-fn propagate_set<T: NumAssign + Ord + Clone, const DIMS: usize>(set: &mut Vec<Point<T, DIMS>>, function: fn(&Point<T, DIMS>) -> bool, start_point: Point<T, DIMS>, upper_bound: &Point<T, DIMS>) {
-    if start_point <= *upper_bound {
+fn propagate_set<T: NumAssign + Ord + Clone + Debug, const DIMS: usize>(set: &mut Vec<Point<T, DIMS>>, function: fn(&Point<T, DIMS>) -> bool, start_point: &Point<T, DIMS>, upper_bound: &Point<T, DIMS>, dim_start: usize) {
+    if start_point <= upper_bound {
         if function(&start_point) {
             set.push(start_point.clone());
         }
-        for i in 0..DIMS {
+        for dim in dim_start..DIMS {
             let mut new_point = start_point.clone();
-            new_point.coords[i] += T::one();
-            propagate_set(set, function, new_point, upper_bound);
+            new_point.coords[dim] += T::one();
+            propagate_set(set, function, &new_point, upper_bound, dim);
         }
     }
 }
